@@ -25,7 +25,6 @@ export class FormInput extends React.PureComponent<IFormInputProps, {}> {
     // The status of the current form input component.
     // The status is internal state of form input.
     private formState: data.IFormState;
-    private fieldInputs: { [index: string]: any } = {};
 
     public static defaultProps: Partial<IFormInputProps> = {
         value: {}
@@ -54,9 +53,6 @@ export class FormInput extends React.PureComponent<IFormInputProps, {}> {
             context: this.props.context,
             attempt: this.props.attempt,
             onValueChange: this.onValueChanged,
-            ref: (input: any) => {
-                this.fieldInputs[index] = input
-            }
         };
 
         const component = React.createElement(fieldDef.input, fieldInputProps);
@@ -78,16 +74,14 @@ export class FormInput extends React.PureComponent<IFormInputProps, {}> {
         } else {
             delete this.formState[field.id];
         }
-        const formState = Object.keys(this.formState).length > 0 ? this.formState : null;
-
-        this.props.onChange(newValue, formState);
+        this.onChange(newValue)
     }
 
     private fireValuesChange(value: any) {
         this.props.fields.forEach((field, index) => {
-            const input = this.fieldInputs[index];
-            if (input && input.onValuesChanged) {
-                const fieldState = input.onValuesChanged(value);
+            const fieldDef = this.props.registry[field.type] as data.IFieldDef;
+            if (fieldDef && fieldDef.inputInjector && fieldDef.inputInjector.onValuesChanged) {
+                const fieldState = fieldDef.inputInjector.onValuesChanged(field, value);
                 if (fieldState) {
                     this.formState[field.id] = fieldState;
                 }
@@ -96,6 +90,34 @@ export class FormInput extends React.PureComponent<IFormInputProps, {}> {
                 }
             }
         })
+    }
+
+    private fireValuesInit(value: any) {
+        this.props.fields.forEach((field, index)=> {
+            const fieldDef = this.props.registry[field.type] as data.IFieldDef;
+            if (fieldDef && fieldDef.inputInjector && fieldDef.inputInjector.onValuesInit) {
+                const fieldState = fieldDef.inputInjector.onValuesInit(field, value);
+                if (fieldState) {
+                    this.formState[field.id] = fieldState;
+                }
+                else {
+                    delete this.formState[field.id];
+                }
+            }
+        })
+    }
+
+    public componentWillMount() {
+        if (this.props.fields && this.props.value) {
+            const newValue = assign({}, this.props.value);
+            this.fireValuesInit(newValue);
+            this.onChange(newValue);
+        }
+    }
+
+    public onChange(value: any) {
+        const formState = Object.keys(this.formState).length > 0 ? this.formState : null;
+        this.props.onChange(value, formState)
     }
 
     // render a list of fields based on the field registry.
